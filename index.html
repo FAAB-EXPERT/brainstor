@@ -15,7 +15,11 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script
+      type="module"
+      src="/src/main.tsx"
+      onerror="const l=document.createElement('link');l.rel='stylesheet';l.href='./assets/app.css';document.head.appendChild(l);const s=document.createElement('script');s.type='module';s.src='./assets/app.js';document.head.appendChild(s);"
+    ></script>
   </body>
 </html>
 
