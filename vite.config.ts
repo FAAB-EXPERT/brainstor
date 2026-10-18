@@ -6,7 +6,21 @@ import {defineConfig} from 'vite';
 export default defineConfig(({ command }) => {
   return {
     base: command === 'build' ? '/brainstor/' : '/',
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      {
+        name: 'use-src-entry-for-vite',
+        transformIndexHtml: {
+          order: 'pre',
+          handler(html) {
+            return html
+              .replace('<link rel="stylesheet" href="./assets/app.css" />', '')
+              .replace('<script type="module" src="./assets/app.js"></script>', '<script type="module" src="/src/main.tsx"></script>');
+          },
+        },
+      },
+      react(),
+      tailwindcss(),
+    ],
     build: {
       rollupOptions: {
         output: {
