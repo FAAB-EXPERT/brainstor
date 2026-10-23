@@ -15,6 +15,15 @@ export type Lang = 'fr' | 'en';
 export type ThemeMode = 'light' | 'dark';
 export type CurrencyCode = 'FCFA' | 'EUR' | 'USD';
 
+export interface UserProfile {
+  nom: string;
+  prenom: string;
+  email: string;
+  contact: string;
+  fonction: string;
+  institution: string;
+}
+
 export interface ResourceItem {
   label: string;
   amount: string;
@@ -169,12 +178,33 @@ const I18N = {
     showAll: 'Voir tout',
     tabs: {
       accueil: { label: 'Accueil', short: 'Accueil' },
+      profil: { label: 'Profil Utilisateur', short: 'Profil' },
       dossier: { label: 'Dossiers & Projets', short: 'Dossiers' },
       brainstorming: { label: 'Brainstorming', short: 'Idées' },
       arbre: { label: 'Arbre à problèmes', short: 'Problèmes' },
       solutions: { label: 'Arbre à solutions', short: 'Solutions' },
       registre_parties: { label: 'Registre Parties Prenantes', short: 'Acteurs' },
       tdr: { label: 'TDR', short: 'TDR' }
+    },
+    profil: {
+      title: 'Profil Utilisateur',
+      subtitle: 'Vos informations personnelles et professionnelles sont enregistrées automatiquement dans la base locale (IndexedDB) et reprises directement dans vos Termes de Référence (TDR).',
+      badge: 'Synchronisé avec les TDR & IndexedDB',
+      nomLabel: 'Nom',
+      nomPlaceholder: 'Ex: KOFFIÉ',
+      prenomLabel: 'Prénom(s)',
+      prenomPlaceholder: 'Ex: Fabien Michael',
+      emailLabel: 'Email',
+      emailPlaceholder: 'Ex: utilisateur@institution.org',
+      contactLabel: 'Contact (Téléphone)',
+      contactPlaceholder: 'Ex: +225 07 00 00 00 00',
+      fonctionLabel: 'Fonction',
+      fonctionPlaceholder: 'Ex: Expert Planification & Suivi-Évaluation GAR',
+      institutionLabel: 'Institution / Organisation',
+      institutionPlaceholder: 'Ex: Ministère de la Santé / Direction Générale',
+      previewTitle: 'Aperçu de la signature dans les TDR (Écran & PDF)',
+      emptyPreview: 'Renseignez vos informations ci-dessus pour les faire apparaître automatiquement dans l’entête de vos TDR.',
+      resetBtn: 'Effacer le profil'
     },
     noProject: {
       title: 'Aucun Portefeuille Actif',
@@ -399,12 +429,33 @@ const I18N = {
     showAll: 'Show all',
     tabs: {
       accueil: { label: 'Home', short: 'Home' },
+      profil: { label: 'User Profile', short: 'Profile' },
       dossier: { label: 'Portfolios & Projects', short: 'Projects' },
       brainstorming: { label: 'Brainstorming', short: 'Ideas' },
       arbre: { label: 'Problem Tree', short: 'Problems' },
       solutions: { label: 'Solution Tree', short: 'Solutions' },
       registre_parties: { label: 'Stakeholder Register', short: 'Actors' },
       tdr: { label: 'TOR (TDR)', short: 'TOR' }
+    },
+    profil: {
+      title: 'User Profile',
+      subtitle: 'Your personal and professional details are automatically saved in the device local database (IndexedDB) and directly included in your Terms of Reference (TOR).',
+      badge: 'Synced with TOR & IndexedDB',
+      nomLabel: 'Last Name',
+      nomPlaceholder: 'e.g. KOFFIÉ',
+      prenomLabel: 'First Name(s)',
+      prenomPlaceholder: 'e.g. Fabien Michael',
+      emailLabel: 'Email',
+      emailPlaceholder: 'e.g. user@institution.org',
+      contactLabel: 'Contact (Phone)',
+      contactPlaceholder: 'e.g. +225 07 00 00 00 00',
+      fonctionLabel: 'Role / Title',
+      fonctionPlaceholder: 'e.g. RBM Planning & M&E Specialist',
+      institutionLabel: 'Institution / Organization',
+      institutionPlaceholder: 'e.g. Ministry of Health / General Directorate',
+      previewTitle: 'Signature preview in TOR (Screen & PDF)',
+      emptyPreview: 'Fill in your profile details above to automatically display them in the header of your TOR documents.',
+      resetBtn: 'Clear profile'
     },
     noProject: {
       title: 'No Active Portfolio',
@@ -1124,8 +1175,18 @@ const STORAGE_KEY = 'faab_gar_portfolios_v1';
 const THEME_STORAGE_KEY = 'faab_gar_theme_v1';
 const LANG_STORAGE_KEY = 'faab_gar_lang_v1';
 const CURRENCY_STORAGE_KEY = 'faab_gar_currency_v1';
+const USER_PROFILE_STORAGE_KEY = 'faab_gar_user_profile_v1';
 const ACTIVE_PROJECT_KEY = 'faab_gar_active_project_id_v1';
 const BRAIN_LOGO_URL = `${import.meta.env.BASE_URL}assets/aistudio/logo_FAAB_BRAINSTORMING_4a6b8c00.png`;
+
+const defaultUserProfile: UserProfile = {
+  nom: '',
+  prenom: '',
+  email: '',
+  contact: '',
+  fonction: '',
+  institution: ''
+};
 
 // --- MOTEUR DE PERSISTANCE INDEXEDDB DE L'APPAREIL ---
 const IDB_NAME = 'faab_brainstorming_db';
@@ -1307,6 +1368,9 @@ export default function App() {
   // Devise (FCFA / EUR / USD)
   const [currency, setCurrency] = useState<CurrencyCode>('FCFA');
 
+  // Profil Utilisateur (Nom, Prénom, Email, Contact, Fonction, Institution)
+  const [userProfile, setUserProfile] = useState<UserProfile>(defaultUserProfile);
+
   const t = I18N[lang];
 
   const toggleTheme = () => setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
@@ -1419,12 +1483,13 @@ export default function App() {
   useEffect(() => {
     let isMounted = true;
     const hydrateFromDeviceDB = async () => {
-      const [savedPortfolios, savedActiveId, savedTheme, savedLang, savedCurrency] = await Promise.all([
+      const [savedPortfolios, savedActiveId, savedTheme, savedLang, savedCurrency, savedUserProfile] = await Promise.all([
         idbGetSetting<Portfolio[]>(STORAGE_KEY),
         idbGetSetting<string>(ACTIVE_PROJECT_KEY),
         idbGetSetting<ThemeMode>(THEME_STORAGE_KEY),
         idbGetSetting<Lang>(LANG_STORAGE_KEY),
-        idbGetSetting<CurrencyCode>(CURRENCY_STORAGE_KEY)
+        idbGetSetting<CurrencyCode>(CURRENCY_STORAGE_KEY),
+        idbGetSetting<UserProfile>(USER_PROFILE_STORAGE_KEY)
       ]);
 
       if (!isMounted) return;
@@ -1462,6 +1527,18 @@ export default function App() {
       // 2b. Devise
       if (savedCurrency === 'FCFA' || savedCurrency === 'EUR' || savedCurrency === 'USD') {
         setCurrency(savedCurrency);
+      }
+
+      // 2c. Profil Utilisateur
+      if (savedUserProfile && typeof savedUserProfile === 'object') {
+        setUserProfile({
+          nom: savedUserProfile.nom || '',
+          prenom: savedUserProfile.prenom || '',
+          email: savedUserProfile.email || '',
+          contact: savedUserProfile.contact || '',
+          fonction: savedUserProfile.fonction || '',
+          institution: savedUserProfile.institution || ''
+        });
       }
 
       // 3. Portefeuilles
@@ -1520,6 +1597,13 @@ export default function App() {
       idbSetSetting(CURRENCY_STORAGE_KEY, currency);
     }
   }, [currency, isDbHydrated]);
+
+  // Synchronisation automatique du profil utilisateur dans IndexedDB
+  useEffect(() => {
+    if (isDbHydrated) {
+      idbSetSetting(USER_PROFILE_STORAGE_KEY, userProfile);
+    }
+  }, [userProfile, isDbHydrated]);
 
   // Sauvegarde automatique fluide (debounced) des portefeuilles dans IndexedDB de l'appareil
   useEffect(() => {
@@ -1607,6 +1691,7 @@ export default function App() {
   const menuItems = useMemo(
     () => [
       { id: 'accueil', label: t.tabs.accueil.label, shortLabel: t.tabs.accueil.short, icon: Home },
+      { id: 'profil', label: t.tabs.profil.label, shortLabel: t.tabs.profil.short, icon: User },
       { id: 'dossier', label: t.tabs.dossier.label, shortLabel: t.tabs.dossier.short, icon: FolderOpen },
       { id: 'brainstorming', label: t.tabs.brainstorming.label, shortLabel: t.tabs.brainstorming.short, icon: Lightbulb },
       { id: 'arbre', label: t.tabs.arbre.label, shortLabel: t.tabs.arbre.short, icon: Network },
@@ -1920,13 +2005,14 @@ export default function App() {
         });
       });
 
-      // 1. ENTÊTE OFFICIEL DU DOCUMENT TDR (Fond blanc, bordure institutionnelle)
+      // 1. ENTÊTE OFFICIEL DU DOCUMENT TDR (Fond blanc, bordure institutionnelle + Informations du Profil Utilisateur)
       doc.setDrawColor(15, 23, 42);
       doc.setLineWidth(0.5);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.5);
       doc.setTextColor(4, 120, 87);
-      doc.text(cleanPdfText((targetProject.institution || 'INSTITUTION').toUpperCase()), margin, y + 4);
+      const headerInstitution = userProfile.institution?.trim() || targetProject.institution || 'INSTITUTION';
+      doc.text(cleanPdfText(headerInstitution.toUpperCase()), margin, y + 4);
 
       // Badge Budget Consolidé à droite
       const budgetTitle = cleanPdfText(t.tdr.consolidatedBudget.toUpperCase());
@@ -1963,23 +2049,30 @@ export default function App() {
         leftY += descLines.length * 4 + 1;
       }
 
-      if (
-        targetProject.concepteurNomPrenoms ||
-        targetProject.concepteurFonction ||
-        targetProject.concepteurEmail
-      ) {
-        const designerParts = [
-          targetProject.concepteurNomPrenoms,
-          targetProject.concepteurFonction,
-          targetProject.concepteurEmail ? `(${targetProject.concepteurEmail})` : ''
+      const fullUserName = [userProfile.nom?.trim(), userProfile.prenom?.trim()].filter(Boolean).join(' ');
+      const hasUserProfileInfo = Boolean(
+        fullUserName ||
+          userProfile.fonction?.trim() ||
+          userProfile.institution?.trim() ||
+          userProfile.email?.trim() ||
+          userProfile.contact?.trim()
+      );
+
+      if (hasUserProfileInfo) {
+        const profileParts = [
+          fullUserName,
+          userProfile.fonction?.trim(),
+          userProfile.institution?.trim(),
+          userProfile.email?.trim() ? `Email: ${userProfile.email.trim()}` : '',
+          userProfile.contact?.trim() ? `Tel: ${userProfile.contact.trim()}` : ''
         ]
           .filter(Boolean)
-          .join(' - ');
-        const designerLine = cleanPdfText(`${t.dossier.designerSectionTitle} : ${designerParts}`);
+          .join(' | ');
+        const profileLine = cleanPdfText(`${t.tabs.profil.label} : ${profileParts}`);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
         doc.setTextColor(30, 41, 59);
-        const dLines = doc.splitTextToSize(designerLine, contentW);
+        const dLines = doc.splitTextToSize(profileLine, contentW);
         doc.text(dLines, margin, Math.max(leftY + 1, y + 18));
         leftY = Math.max(leftY + 1, y + 18) + dLines.length * 4;
       }
@@ -3059,8 +3152,28 @@ export default function App() {
             <span className="text-xs whitespace-nowrap">{menuItems[0].label}</span>
           </button>
 
+          {/* Onglet Profil Utilisateur (juste en dessous de l'onglet Accueil) */}
           <button
             onClick={() => handleTabClick(menuItems[1])}
+            className={`w-full flex items-center px-3.5 py-2.5 min-h-[40px] transition-colors cursor-pointer text-left ${
+              activeTab === 'profil'
+                ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+                : theme === 'dark'
+                ? 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950 font-medium'
+            }`}
+          >
+            <User
+              size={16}
+              className={`mr-2.5 shrink-0 ${
+                activeTab === 'profil' ? 'text-white' : theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'
+              }`}
+            />
+            <span className="text-xs whitespace-nowrap">{menuItems[1].label}</span>
+          </button>
+
+          <button
+            onClick={() => handleTabClick(menuItems[2])}
             className={`w-full flex items-center px-3.5 py-2.5 min-h-[40px] transition-colors cursor-pointer text-left ${
               activeTab === 'dossier'
                 ? 'bg-emerald-600 text-white font-bold shadow-2xs'
@@ -3076,7 +3189,7 @@ export default function App() {
               }`}
             />
             <div className="flex items-center justify-between flex-1">
-              <span className="text-xs whitespace-nowrap">{menuItems[1].label}</span>
+              <span className="text-xs whitespace-nowrap">{menuItems[2].label}</span>
               <span
                 className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${
                   activeTab === 'dossier'
@@ -3100,7 +3213,7 @@ export default function App() {
             {t.garApproach}
           </div>
 
-          {menuItems.slice(2).map(item => {
+          {menuItems.slice(3).map(item => {
             const isItemActive = activeTab === item.id;
             return (
               <button
@@ -3141,9 +3254,9 @@ export default function App() {
             <div className={`font-black truncate ${theme === 'dark' ? 'text-slate-200' : 'text-slate-900'}`}>
               {activeProject.name}
             </div>
-            {activeProject.concepteurNomPrenoms && (
+            {(userProfile.nom || userProfile.prenom) && (
               <div className={`text-[9px] truncate ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-                {activeProject.concepteurNomPrenoms}
+                {[userProfile.nom, userProfile.prenom].filter(Boolean).join(' ')}
               </div>
             )}
             <div className={`text-[10px] font-mono font-bold tabular-nums ${theme === 'dark' ? 'text-emerald-400' : 'text-emerald-700'}`}>
@@ -4297,7 +4410,171 @@ export default function App() {
             </div>
           )}
 
-          {/* ONGLET : DOSSIERS & PROJETS (CRÉATION ILLIMITÉE + INFORMATIONS DU CONCEPTEUR PAR PROJET) */}
+          {/* ONGLET : PROFIL UTILISATEUR (NOM, PRÉNOM, EMAIL, CONTACT, FONCTION, INSTITUTION) */}
+          {activeTab === 'profil' && (
+            <div className="relative z-10 flex-1 space-y-4 w-full max-w-4xl mx-auto">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-2xs">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
+                    <User size={20} />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-sm sm:text-base font-black text-slate-900">{t.profil.title}</h2>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <Database size={10} />
+                        {t.profil.badge}
+                      </span>
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-slate-500 mt-1 max-w-2xl">
+                      {t.profil.subtitle}
+                    </p>
+                  </div>
+                </div>
+                {(userProfile.nom ||
+                  userProfile.prenom ||
+                  userProfile.email ||
+                  userProfile.contact ||
+                  userProfile.fonction ||
+                  userProfile.institution) && (
+                  <Button
+                    variant="secondary"
+                    icon={RotateCcw}
+                    onClick={() => setUserProfile(defaultUserProfile)}
+                  >
+                    {t.profil.resetBtn}
+                  </Button>
+                )}
+              </div>
+
+              <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-2xs space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1.5">
+                      {t.profil.nomLabel}
+                    </label>
+                    <input
+                      type="text"
+                      value={userProfile.nom}
+                      onChange={e => setUserProfile(prev => ({ ...prev, nom: e.target.value }))}
+                      placeholder={t.profil.nomPlaceholder}
+                      className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white rounded-lg px-3 py-2 text-xs sm:text-sm font-bold text-slate-900 outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1.5">
+                      {t.profil.prenomLabel}
+                    </label>
+                    <input
+                      type="text"
+                      value={userProfile.prenom}
+                      onChange={e => setUserProfile(prev => ({ ...prev, prenom: e.target.value }))}
+                      placeholder={t.profil.prenomPlaceholder}
+                      className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white rounded-lg px-3 py-2 text-xs sm:text-sm font-bold text-slate-900 outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1.5">
+                      {t.profil.emailLabel}
+                    </label>
+                    <div className="relative">
+                      <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="email"
+                        value={userProfile.email}
+                        onChange={e => setUserProfile(prev => ({ ...prev, email: e.target.value }))}
+                        placeholder={t.profil.emailPlaceholder}
+                        className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white rounded-lg pl-9 pr-3 py-2 text-xs sm:text-sm font-medium text-slate-900 outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1.5">
+                      {t.profil.contactLabel}
+                    </label>
+                    <div className="relative">
+                      <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="tel"
+                        value={userProfile.contact}
+                        onChange={e => setUserProfile(prev => ({ ...prev, contact: e.target.value }))}
+                        placeholder={t.profil.contactPlaceholder}
+                        className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white rounded-lg pl-9 pr-3 py-2 text-xs sm:text-sm font-mono font-semibold text-slate-900 outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1.5">
+                      {t.profil.fonctionLabel}
+                    </label>
+                    <input
+                      type="text"
+                      value={userProfile.fonction}
+                      onChange={e => setUserProfile(prev => ({ ...prev, fonction: e.target.value }))}
+                      placeholder={t.profil.fonctionPlaceholder}
+                      className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white rounded-lg px-3 py-2 text-xs sm:text-sm font-semibold text-slate-900 outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1.5">
+                      {t.profil.institutionLabel}
+                    </label>
+                    <input
+                      type="text"
+                      value={userProfile.institution}
+                      onChange={e => setUserProfile(prev => ({ ...prev, institution: e.target.value }))}
+                      placeholder={t.profil.institutionPlaceholder}
+                      className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white rounded-lg px-3 py-2 text-xs sm:text-sm font-semibold text-slate-900 outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {/* APERÇU DE LA REPRISE DANS LE TDR */}
+                <div className="pt-4 border-t border-slate-200">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-emerald-700 mb-2">
+                    {t.profil.previewTitle}
+                  </div>
+                  {userProfile.nom ||
+                  userProfile.prenom ||
+                  userProfile.email ||
+                  userProfile.contact ||
+                  userProfile.fonction ||
+                  userProfile.institution ? (
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-700">
+                      {(userProfile.nom || userProfile.prenom) && (
+                        <span className="font-black text-slate-900">
+                          {[userProfile.nom, userProfile.prenom].filter(Boolean).join(' ')}
+                        </span>
+                      )}
+                      {userProfile.fonction && (
+                        <span className="font-semibold text-emerald-800">· {userProfile.fonction}</span>
+                      )}
+                      {userProfile.institution && (
+                        <span className="font-bold uppercase text-slate-600">· {userProfile.institution}</span>
+                      )}
+                      {userProfile.email && (
+                        <span className="font-mono text-emerald-700">({userProfile.email})</span>
+                      )}
+                      {userProfile.contact && (
+                        <span className="font-mono text-slate-600">· {userProfile.contact}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-slate-50 border border-dashed border-slate-300 rounded-lg p-3 text-xs text-slate-500 italic">
+                      {t.profil.emptyPreview}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ONGLET : DOSSIERS & PROJETS (CRÉATION ILLIMITÉE) */}
           {activeTab === 'dossier' && (
             <div className="flex-1 space-y-4 w-full max-w-7xl mx-auto">
               <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5 bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-2xs">
@@ -4370,35 +4647,6 @@ export default function App() {
                               className="w-full text-[11px] text-slate-600 bg-transparent border-b border-dashed border-slate-300 focus:border-emerald-500 outline-none h-11 resize-none custom-scrollbar py-0.5"
                               placeholder={t.dossier.descPlaceholder}
                             />
-
-                            {/* BLOC INFORMATIONS SUR LE CONCEPTEUR (NOM & PRÉNOMS, FONCTION, EMAIL) */}
-                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 space-y-1.5 mt-1">
-                              <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-emerald-700">
-                                <User size={11} className="shrink-0" />
-                                <span>{t.dossier.designerSectionTitle}</span>
-                              </div>
-                              <input
-                                type="text"
-                                value={port.concepteurNomPrenoms || ''}
-                                onChange={e => updatePortfolioMeta(port.id, 'concepteurNomPrenoms', e.target.value)}
-                                className="w-full text-[10px] font-bold text-slate-800 bg-white border border-slate-200 rounded px-2 py-1 focus:border-emerald-500 outline-none"
-                                placeholder={t.dossier.designerNamePlaceholder}
-                              />
-                              <input
-                                type="text"
-                                value={port.concepteurFonction || ''}
-                                onChange={e => updatePortfolioMeta(port.id, 'concepteurFonction', e.target.value)}
-                                className="w-full text-[10px] font-medium text-slate-700 bg-white border border-slate-200 rounded px-2 py-1 focus:border-emerald-500 outline-none"
-                                placeholder={t.dossier.designerRolePlaceholder}
-                              />
-                              <input
-                                type="email"
-                                value={port.concepteurEmail || ''}
-                                onChange={e => updatePortfolioMeta(port.id, 'concepteurEmail', e.target.value)}
-                                className="w-full text-[10px] font-mono text-slate-700 bg-white border border-slate-200 rounded px-2 py-1 focus:border-emerald-500 outline-none"
-                                placeholder={t.dossier.designerEmailPlaceholder}
-                              />
-                            </div>
                           </div>
                         ) : (
                           <div className="mb-3 space-y-2">
@@ -4408,14 +4656,6 @@ export default function App() {
                               </div>
                               <h3 className="font-black text-xs sm:text-sm text-slate-900 mb-1">{port.name}</h3>
                               <p className="text-[11px] text-slate-600 line-clamp-2">{port.description}</p>
-                            </div>
-                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 text-[10px] space-y-0.5">
-                              <div className="text-[9px] font-black uppercase text-emerald-700">
-                                {t.dossier.designerSectionTitle}
-                              </div>
-                              <div className="font-bold text-slate-800">{port.concepteurNomPrenoms || '-'}</div>
-                              <div className="text-slate-600">{port.concepteurFonction || '-'}</div>
-                              <div className="font-mono text-slate-600 truncate">{port.concepteurEmail || '-'}</div>
                             </div>
                           </div>
                         )}
@@ -6189,7 +6429,7 @@ export default function App() {
                   <div className="border-b-2 border-slate-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
                       <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 block">
-                        {activeProject.institution || 'Institution'}
+                        {userProfile.institution?.trim() || activeProject.institution || 'Institution'}
                       </span>
                       <h1 className="text-base sm:text-xl font-black text-slate-900 uppercase tracking-tight mt-0.5">
                         {t.tdr.docTitlePrefix} {activeProject.name}
@@ -6197,19 +6437,30 @@ export default function App() {
                       {activeProject.description && (
                         <p className="text-[11px] text-slate-600 mt-1 max-w-3xl">{activeProject.description}</p>
                       )}
-                      {(activeProject.concepteurNomPrenoms ||
-                        activeProject.concepteurFonction ||
-                        activeProject.concepteurEmail) && (
-                        <div className="mt-2 inline-flex flex-wrap items-center gap-2 text-[10px] bg-slate-100 border border-slate-200 rounded-md px-2.5 py-1 text-slate-700">
+                      {(userProfile.nom ||
+                        userProfile.prenom ||
+                        userProfile.fonction ||
+                        userProfile.institution ||
+                        userProfile.email ||
+                        userProfile.contact) && (
+                        <div className="mt-2 inline-flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] bg-slate-100 border border-slate-200 rounded-md px-2.5 py-1 text-slate-700">
                           <span className="font-black uppercase text-emerald-800">
-                            {t.dossier.designerSectionTitle} :
+                            {t.tabs.profil.label} :
                           </span>
-                          {activeProject.concepteurNomPrenoms && (
-                            <span className="font-bold text-slate-900">{activeProject.concepteurNomPrenoms}</span>
+                          {(userProfile.nom || userProfile.prenom) && (
+                            <span className="font-bold text-slate-900">
+                              {[userProfile.nom, userProfile.prenom].filter(Boolean).join(' ')}
+                            </span>
                           )}
-                          {activeProject.concepteurFonction && <span>· {activeProject.concepteurFonction}</span>}
-                          {activeProject.concepteurEmail && (
-                            <span className="font-mono text-emerald-700">({activeProject.concepteurEmail})</span>
+                          {userProfile.fonction && <span>· {userProfile.fonction}</span>}
+                          {userProfile.institution && (
+                            <span className="font-semibold text-slate-800">· {userProfile.institution}</span>
+                          )}
+                          {userProfile.email && (
+                            <span className="font-mono text-emerald-700">({userProfile.email})</span>
+                          )}
+                          {userProfile.contact && (
+                            <span className="font-mono text-slate-600">· {userProfile.contact}</span>
                           )}
                         </div>
                       )}
